@@ -1,0 +1,44 @@
+name: Build WDA standalone (XCTest bundled)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    env:
+      PKG_NAME_IOS: "WebDriverAgentRunner-Runner-Standalone"
+      ZIP_PKG_NAME_IOS: "WebDriverAgentRunner-Runner-Standalone.zip"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.4"
+
+      - name: Build WebDriverAgentRunner for generic iOS device (unsigned, keep XCTest frameworks)
+        run: |
+          xcodebuild clean build-for-testing \
+            -project WebDriverAgent.xcodeproj \
+            -derivedDataPath appium_wda_ios \
+            -scheme WebDriverAgentRunner \
+            -destination generic/platform=iOS \
+            CODE_SIGNING_ALLOWED=NO ARCHS=arm64
+
+      - name: Zip the app WITHOUT excluding XCTest frameworks (needed to run standalone without Xcode)
+        run: |
+          WD=appium_wda_ios/Build/Products/Debug-iphoneos
+          pushd "$WD"
+          ls -la WebDriverAgentRunner-Runner.app/Frameworks
+          zip -r "$ZIP_PKG_NAME_IOS" WebDriverAgentRunner-Runner.app
+          popd
+          mv "$WD/$ZIP_PKG_NAME_IOS" ./
+
+      - name: Upload the built standalone app package
+        uses: actions/upload-artifact@v4
+        with:
+          name: "${{ env.PKG_NAME_IOS }}"
+          path: "${{ env.ZIP_PKG_NAME_IOS }}"
