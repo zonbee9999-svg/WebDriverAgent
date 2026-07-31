@@ -31,11 +31,24 @@ jobs:
             -destination generic/platform=iOS \
             CODE_SIGNING_ALLOWED=NO ARCHS=arm64
 
+      - name: Ad-hoc sign every nested bundle (frameworks + xctest plugin) so re-signing tools handle them correctly
+        run: |
+          WD=appium_wda_ios/Build/Products/Debug-iphoneos
+          APP="$WD/WebDriverAgentRunner-Runner.app"
+          find "$APP" -name "*.framework" -o -name "*.xctest" | while read -r bundle; do
+            echo "Signing: $bundle"
+            codesign --force --sign - --timestamp=none "$bundle"
+          done
+          codesign --force --deep --sign - --timestamp=none "$APP"
+          echo "--- verifying ---"
+          codesign --display --verbose=4 "$APP/PlugIns/WebDriverAgentRunner.xctest" || true
+
       - name: Zip the app WITHOUT excluding XCTest frameworks (needed to run standalone without Xcode)
         run: |
           WD=appium_wda_ios/Build/Products/Debug-iphoneos
           pushd "$WD"
           ls -la WebDriverAgentRunner-Runner.app/Frameworks
+          ls -la WebDriverAgentRunner-Runner.app/PlugIns/WebDriverAgentRunner.xctest
           zip -r "$ZIP_PKG_NAME_IOS" WebDriverAgentRunner-Runner.app
           popd
           mv "$WD/$ZIP_PKG_NAME_IOS" ./
